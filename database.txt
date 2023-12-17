@@ -1,0 +1,8 @@
+Server: dpg-cln26ucjtl8s73abulk0-a.frankfurt-postgres.render.com
+Database: usersdb_2b2r
+Port: 5432 (default)
+User: usersdb_2b2r_user
+Password: ejwARqXJMgerGElvWkqoJEEx3xrYebmi
+
+URL: postgres://usersdb_2b2r_user:ejwARqXJMgerGElvWkqoJEEx3xrYebmi@dpg-cln26ucjtl8s73abulk0-a.frankfurt-postgres.render.com/usersdb_2b2r
+

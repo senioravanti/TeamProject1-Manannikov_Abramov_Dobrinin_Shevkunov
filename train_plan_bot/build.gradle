@@ -1,0 +1,47 @@
+// Описывает что проект на Java, использует фреймворк Spring Boot.
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.1.5'
+    id 'io.spring.dependency-management' version '1.1.3'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'ru.stradiavanti'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '17'
+}
+
+// Gradle извлекает все зависимости из репозитория mavenCentral
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-configuration-processor'
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    // основная библиотека, используется для создания тг ботов на Java.
+    implementation 'org.telegram:telegrambots-spring-boot-starter:6.8.0'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    testCompileOnly 'org.projectlombok:lombok:1.18.30'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-jpa', version: '3.2.0'
+    implementation group: 'org.postgresql', name: 'postgresql', version: '42.6.0'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class' : 'ru.stradiavanti.train_plan_bot.TrainPlanBotApplication'
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
