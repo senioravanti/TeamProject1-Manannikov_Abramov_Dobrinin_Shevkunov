@@ -6,7 +6,9 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
@@ -17,6 +19,8 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.stradiavanti.train_plan_bot.config.BotConfig;
+import ru.stradiavanti.train_plan_bot.model.Trainer;
+import ru.stradiavanti.train_plan_bot.model.TrainerRepository;
 import ru.stradiavanti.train_plan_bot.model.User;
 import ru.stradiavanti.train_plan_bot.model.UserRepository;
 
@@ -43,11 +47,17 @@ public class TelegramBot extends TelegramLongPollingBot {
   @Autowired
   // Включаем зависимость и внедряем ее
   private UserRepository userRepository;
+  @Autowired
+  private TrainerRepository trainerRepository;
   private final BotConfig config;
 
   private final String CALLBACK_YES = "__YES";
   private final String CALLBACK_NO = "__NO";
   private final String CALLBACK_SET_SUBSCRIPTION = "__SET_SUBSCRIPTION";
+  private final String CALLBACK_DELETE_SUBSCRIPTION = "__DELETE_SUBSCRIPTION";
+  private final String CALLBACK_FITNESS = "__FITNESS";
+  private final String CALLBACK_BODYBUILDING = "__BODYBUILDING";
+  private final String CALLBACK_YOGA = "__YOGA";
 
   private final String HELP_TEXT = "\n***\n\nМои ф-ции :\n" +
     "- Составить расписание /getschedule" +
@@ -55,6 +65,8 @@ public class TelegramBot extends TelegramLongPollingBot {
     " начнешь регулярно" +
     "ходить на" +
     " трени (или не добавишь меня в черный список).\n\n***";
+
+  private Long trainerId;
 
   /* Методы */
   public TelegramBot(BotConfig config) {
@@ -151,20 +163,49 @@ public class TelegramBot extends TelegramLongPollingBot {
         text = "🎉 Поздравляю вы записаны в наш фитнес клуб, вам выдан бесплатный " +
           "абонемент на 3 месяца до " + dt.format(cal.getTime());
         callbackDataEditMes(chatId, mesId, text);
-
+        sendTrainer(chatId, trainerId);
 
       } else if (callbackData.equals(CALLBACK_SET_SUBSCRIPTION)) {
-        // Будем регистрировать
-        register(chatId);
+        // Выбираем направление тренировок
+        chooseUserSpecialization(chatId);
 
       } else if (callbackData.equals(CALLBACK_NO)) {
         text = "🤑 Пожалуйста подумайте еще раз, очень хотим вас видеть в нашем клубе.";
         callbackDataEditMes(chatId, mesId, text);
 
+      } else if (callbackData.equals(CALLBACK_DELETE_SUBSCRIPTION)) {
+        text = "До свидания, надеюсь мы еще увидимся снова";
+        callbackDataEditMes(chatId, mesId, text);
+        userRepository.deleteById(chatId);
+
+      } else if (callbackData.equals(CALLBACK_FITNESS)) {
+        trainerId = getSpecialTrainerId("Фитнес");
+        register(chatId);
+
+      } else if (callbackData.equals(CALLBACK_BODYBUILDING)) {
+        trainerId = getSpecialTrainerId("Бодибилдинг");
+        register(chatId);
+
+      } else if (callbackData.equals(CALLBACK_YOGA)) {
+        trainerId = getSpecialTrainerId("Йога");
+        register(chatId);
+
       }
 
     }
 
+  }
+  private void sendTrainer(Long chatId, Long id) {
+    Trainer trainer = trainerRepository.findById(id).get();
+    SendPhoto sendPhoto = new SendPhoto();
+    sendPhoto.setChatId(String.valueOf(chatId));
+    sendPhoto.setPhoto(new InputFile(trainer.getPhotoPath()));
+    sendPhoto.setCaption("Ваш тренер: " + trainer.getFirstName() + " " + trainer.getLastName());
+    try {
+      execute(sendPhoto);
+    } catch (TelegramApiException e) {
+      log.error("Error occurred : " + e.getMessage());
+    }
   }
   private void justSendMessage(Long chatId, String text) {
     SendMessage message = new SendMessage();
@@ -222,6 +263,20 @@ public class TelegramBot extends TelegramLongPollingBot {
         " " +
         "тебе составить новое " +
         "расписание тренировок, или выведу действующее.";
+
+      InlineKeyboardMarkup menu = new InlineKeyboardMarkup();
+      List< List<InlineKeyboardButton> > buttonsMatrix =
+              new ArrayList< List<InlineKeyboardButton> >();
+      List< InlineKeyboardButton > buttonsRow = new ArrayList< InlineKeyboardButton >();
+
+      var butDeleteSubscription = new InlineKeyboardButton();
+      butDeleteSubscription.setText("Перестать ходить на тренировки");
+      butDeleteSubscription.setCallbackData(CALLBACK_DELETE_SUBSCRIPTION);
+
+      buttonsRow.add(butDeleteSubscription);
+      buttonsMatrix.add(buttonsRow);
+      menu.setKeyboard(buttonsMatrix);
+      message.setReplyMarkup(menu);
     }
 
     message.setText(answer);
@@ -236,18 +291,18 @@ public class TelegramBot extends TelegramLongPollingBot {
     message.setChatId(chatId);
 
     if (userRepository.findById(chatId).isEmpty()) {
+
+      InlineKeyboardMarkup menu = new InlineKeyboardMarkup();
+      List< List<InlineKeyboardButton> > buttonsMatrix = new ArrayList< List<InlineKeyboardButton> >();
+      List< InlineKeyboardButton > buttonsRow = new ArrayList< InlineKeyboardButton >();
+
       message.setText("🫵 В нашем фитнес клубе для новых посетителей 3 месяца " +
         "бесплатно, потом " +
-        "10_000 руб " +
+        "10 000 руб " +
         "в " +
         "месяц," +
         " " +
         "вы согласны записаться ?");
-
-      InlineKeyboardMarkup menu = new InlineKeyboardMarkup();
-      List< List<InlineKeyboardButton> > buttonsMatrix =
-        new ArrayList< List<InlineKeyboardButton> >();
-      List< InlineKeyboardButton > buttonsRow = new ArrayList< InlineKeyboardButton >();
 
       var but_yes = new InlineKeyboardButton();
       but_yes.setText("Да");
@@ -276,16 +331,62 @@ public class TelegramBot extends TelegramLongPollingBot {
     var chatId = message.getChatId();
     var chat = message.getChat();
 
+
     User user = new User();
     user.setChatId(chatId);
     user.setLastName(chat.getLastName());
     user.setFirstName(chat.getFirstName());
+    user.setTrainerId(trainerId);
     user.setStartSubscriptionDate(LocalDate.now());
     user.setEndSubscriptionDate(user.getStartSubscriptionDate().plusMonths(3));
     // Последний параметр надо из таблицы брать.
     userRepository.save(user);
     // Оператор + -> перегруженный метод toString
     log.info("User saved" + user);
+  }
+
+  private void chooseUserSpecialization(Long chatId) {
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId);
+
+    InlineKeyboardMarkup menu = new InlineKeyboardMarkup();
+    List< List<InlineKeyboardButton> > buttonsMatrix = new ArrayList< List<InlineKeyboardButton> >();
+    List< InlineKeyboardButton > buttonsRow = new ArrayList< InlineKeyboardButton >();
+
+    message.setText("💪🏼 Чем бы вы хотели заниматься в нашем зале ?");
+
+    var but_fitness = new InlineKeyboardButton();
+    but_fitness.setText("🤸🏽 Фитнес");
+    but_fitness.setCallbackData(CALLBACK_FITNESS);
+
+    var but_bodybuilding = new InlineKeyboardButton();
+    but_bodybuilding.setText("🏋️‍♂️ Бодибилдинг");
+    but_bodybuilding.setCallbackData(CALLBACK_BODYBUILDING);
+
+    var but_yoga = new InlineKeyboardButton();
+    but_yoga.setText("️🧘🏽‍♀️ Йога");
+    but_yoga.setCallbackData(CALLBACK_YOGA);
+
+    buttonsRow.add(but_fitness);
+    buttonsRow.add(but_bodybuilding);
+    buttonsRow.add(but_yoga);
+
+    buttonsMatrix.add(buttonsRow);
+    menu.setKeyboard(buttonsMatrix);
+
+    message.setReplyMarkup(menu);
+
+    sendMessage(message);
+  }
+  private Long getSpecialTrainerId(String specialization) {
+    List<Long> fitnessTrainersId = new ArrayList<Long>();
+    for (Trainer t : trainerRepository.findAll()) {
+      if (t.getSpecialization().equals(specialization)) {
+        fitnessTrainersId.add(t.getTrainerId());
+      }
+    }
+    int randomIndex = (int) (Math.random() * fitnessTrainersId.size());
+    return fitnessTrainersId.get(randomIndex);
   }
 
   private void callbackDataEditMes(long chatId, long mesId, String text) {

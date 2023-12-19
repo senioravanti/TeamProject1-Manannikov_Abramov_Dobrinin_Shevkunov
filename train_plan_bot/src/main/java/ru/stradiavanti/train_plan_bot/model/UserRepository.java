@@ -14,5 +14,4 @@ import org.springframework.stereotype.Repository;
 // В качестве параметров шаблона передаем 1. тип сущности 2. тип первичного ключа
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-  User findByChatId(Long chatId);
 }
