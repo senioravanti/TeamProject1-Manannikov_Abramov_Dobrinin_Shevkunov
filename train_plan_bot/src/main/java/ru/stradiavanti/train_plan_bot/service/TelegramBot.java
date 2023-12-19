@@ -160,7 +160,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         registerUser(update.getCallbackQuery().getMessage());
 
-        text = "🎉 Поздравляю вы записаны в наш фитнес клуб, вам выдан бесплатный " +
+        text = "🎉 Поздравляю вы записаны в наш клуб, вам выдан бесплатный " +
           "абонемент на 3 месяца до " + dt.format(cal.getTime());
         callbackDataEditMes(chatId, mesId, text);
         sendTrainer(chatId, trainerId);
