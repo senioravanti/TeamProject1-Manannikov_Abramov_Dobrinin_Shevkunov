@@ -14,23 +14,16 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.stradiavanti.train_plan_bot.config.BotConfig;
-import ru.stradiavanti.train_plan_bot.model.Trainer;
-import ru.stradiavanti.train_plan_bot.model.TrainerRepository;
-import ru.stradiavanti.train_plan_bot.model.User;
-import ru.stradiavanti.train_plan_bot.model.UserRepository;
+import ru.stradiavanti.train_plan_bot.model.*;
 
-import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.List;
+import java.time.LocalTime;
+import java.util.*;
 
 @Component
 @Slf4j
@@ -49,6 +42,8 @@ public class TelegramBot extends TelegramLongPollingBot {
   private UserRepository userRepository;
   @Autowired
   private TrainerRepository trainerRepository;
+  @Autowired
+  private ScheduleRepository scheduleRepository;
   private final BotConfig config;
 
   private final String CALLBACK_YES = "__YES";
@@ -123,13 +118,15 @@ public class TelegramBot extends TelegramLongPollingBot {
 
       switch (mesText) {
         case "/start":
-          //registerUser(update.getMessage());
           startCommandReceived(chatId, name);
 
           break;
         case "/register":
           // Выносим все в отдельные методы
-          register(chatId);
+          confirmSubscription(chatId);
+          break;
+        case "/getschedule":
+          sendSchedule(chatId);
           break;
         case "/help":
           // Выводим список команд.
@@ -164,6 +161,7 @@ public class TelegramBot extends TelegramLongPollingBot {
           "абонемент на 3 месяца до " + dt.format(cal.getTime());
         callbackDataEditMes(chatId, mesId, text);
         sendTrainer(chatId, trainerId);
+        sendSchedule(chatId);
 
       } else if (callbackData.equals(CALLBACK_SET_SUBSCRIPTION)) {
         // Выбираем направление тренировок
@@ -177,18 +175,19 @@ public class TelegramBot extends TelegramLongPollingBot {
         text = "До свидания, надеюсь мы еще увидимся снова";
         callbackDataEditMes(chatId, mesId, text);
         userRepository.deleteById(chatId);
+        scheduleRepository.deleteById(chatId);
 
       } else if (callbackData.equals(CALLBACK_FITNESS)) {
         trainerId = getSpecialTrainerId("Фитнес");
-        register(chatId);
+        confirmSubscription(chatId);
 
       } else if (callbackData.equals(CALLBACK_BODYBUILDING)) {
         trainerId = getSpecialTrainerId("Бодибилдинг");
-        register(chatId);
+        confirmSubscription(chatId);
 
       } else if (callbackData.equals(CALLBACK_YOGA)) {
         trainerId = getSpecialTrainerId("Йога");
-        register(chatId);
+        confirmSubscription(chatId);
 
       }
 
@@ -285,7 +284,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     log.info("Replied to user " + name);
   }
 
-  private void register(long chatId) {
+  private void confirmSubscription(long chatId) {
     // TODO проверять есть ли пользователь в базе данных, если нет то регистрируем.
     SendMessage message = new SendMessage();
     message.setChatId(chatId);
@@ -379,16 +378,78 @@ public class TelegramBot extends TelegramLongPollingBot {
     sendMessage(message);
   }
   private Long getSpecialTrainerId(String specialization) {
-    List<Long> fitnessTrainersId = new ArrayList<Long>();
+    List<Long> trainersId = new ArrayList<Long>();
     for (Trainer t : trainerRepository.findAll()) {
       if (t.getSpecialization().equals(specialization)) {
-        fitnessTrainersId.add(t.getTrainerId());
+        trainersId.add(t.getTrainerId());
       }
     }
-    int randomIndex = (int) (Math.random() * fitnessTrainersId.size());
-    return fitnessTrainersId.get(randomIndex);
+    int randomIndex = (int) (Math.random() * trainersId.size());
+    return trainersId.get(randomIndex);
   }
+  private void sendSchedule(Long chatId) {
+    if (scheduleRepository.findById(chatId).isEmpty()) {
+      generateSchedule(chatId);
+    }
+    Schedule schedule = scheduleRepository.findById(chatId).get();
+    String[] trainingDays = schedule.getTrainingDays();
+    String[] trainingTimes = schedule.getTrainingTimes();
 
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId);
+    String text = "Вот расписание ваших тренировок:\n";
+    for (int i = 0; i < trainingDays.length; i++) {
+      String[] times = trainingTimes[i].split("-");
+      text += trainingDays[i] + ": " + times[0] + " - " + times[1] + "\n";
+    }
+    message.setText(text);
+    sendMessage(message);
+  }
+  private enum Days {
+    Понедельник, Вторник, Среда, Четверг, Пятница
+  }
+  private void generateSchedule(Long chatId) {
+    Schedule schedule = new Schedule();
+    int daysNumber = Days.values().length;
+    int trainingDaysCount = (int) (Math.random() * 2) + 2;
+    String[] trainingDays = new String[trainingDaysCount];
+    int[] randomDays = getUniqueRandomNumbers(trainingDaysCount);
+    // генерируем дни тренировок
+    for (int i = 0; i < trainingDaysCount; i++) {
+      trainingDays[i] = String.valueOf(Days.values()[randomDays[i]]);
+    }
+    // генерируем время тренировок
+    String[] trainingTimes = new String[trainingDaysCount];
+    for (int i = 0; i < trainingDaysCount; i++) {
+      int startTime = (int) (Math.random() * (20 - 8)) + 8;
+      LocalTime[] time = new LocalTime[2];
+      time[0] = LocalTime.of(startTime, 0);
+      time[1] = LocalTime.of(startTime + 1, 30);
+      trainingTimes[i] =  String.valueOf(time[0]) + "-" + String.valueOf(time[1]);
+    }
+    // сохраняем сгенерированное расписание
+    schedule.setClientId(chatId);
+    schedule.setTrainerId(trainerId);
+    schedule.setTrainingDays(trainingDays);
+    schedule.setTrainingTimes(trainingTimes);
+
+    scheduleRepository.save(schedule);
+
+    log.info("Schedule saved: " + schedule);
+  }
+  private int[] getUniqueRandomNumbers(int size) {
+    int[] result = new int[size];
+    Set<Integer> uniqueNumbers = new HashSet<>();
+    while (uniqueNumbers.size() < size) {
+      int randomNumber = (int) (Math.random() * size);
+      uniqueNumbers.add(randomNumber);
+    }
+    int index = 0;
+    for (int num : uniqueNumbers) {
+      result[index++] = num;
+    }
+    return result;
+  }
   private void callbackDataEditMes(long chatId, long mesId, String text) {
     EditMessageText mes = new EditMessageText();
     mes.setChatId(chatId);
