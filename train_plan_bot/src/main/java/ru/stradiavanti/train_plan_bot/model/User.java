@@ -2,6 +2,7 @@ package ru.stradiavanti.train_plan_bot.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,19 +16,19 @@ import java.time.LocalDate;
 // Поля это столбцы таблицы, экземпляры этого класса -> строки таблицы
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity(name = "clients")
+@Table(name = "clients", schema = "public")
 public class User {
 
   // Объявляем свойство primary key, он обязательно должен иметь тип Long
   @Id
   private Long chatId;
+  private Long trainerId;
 
   private String firstName;
   private String lastName;
-  private Long trainerId;
   private LocalDate startSubscriptionDate;
   private LocalDate endSubscriptionDate;
 

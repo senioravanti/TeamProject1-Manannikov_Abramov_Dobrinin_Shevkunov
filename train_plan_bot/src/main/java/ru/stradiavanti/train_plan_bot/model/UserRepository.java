@@ -12,7 +12,5 @@ import org.springframework.stereotype.Repository;
 // который идентифицирует каждую из записей таблицы.
 // Механизм Spring, который предоставляет методы для работы с базой данных
 // В качестве параметров шаблона передаем 1. тип сущности 2. тип первичного ключа
-@Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-  User findByChatId(Long chatId);
 }
