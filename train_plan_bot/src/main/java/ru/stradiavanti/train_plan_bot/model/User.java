@@ -26,11 +26,21 @@ public class User {
   @Id
   private Long chatId;
   private Long trainerId;
+  private Double trainerRaiting;
 
   private String firstName;
   private String lastName;
   private LocalDate startSubscriptionDate;
   private LocalDate endSubscriptionDate;
+
+  private Double trainingDuration;
+
+  private Boolean monday;
+  private Boolean tuesday;
+  private Boolean wednesday;
+  private Boolean thursday;
+  private Boolean friday;
+
 
   @Override
   public String toString() {

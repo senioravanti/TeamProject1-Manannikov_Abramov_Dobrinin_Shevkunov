@@ -37,7 +37,7 @@ public class Trainer {
 
   private Boolean isFree;
 
-  private Double sumOfVotes;
+  private Double rating;
   private Integer numberOfVotes;
   @Override
   public String toString() {

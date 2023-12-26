@@ -14,7 +14,7 @@ public class Schedule {
 
     private Long trainerId;
 
-    private String[] trainingDays;
+    //private String[] trainingDays;
 
-    private String[] trainingTimes;
+    //private String[] trainingTimes;
 }
